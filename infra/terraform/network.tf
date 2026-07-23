@@ -1,6 +1,13 @@
 locals {
   name     = "${var.project_name}-${var.environment}"
   az_count = length(var.availability_zones)
+  application_interface_endpoint_services = toset([
+    "ecr.api",
+    "ecr.dkr",
+    "logs",
+    "secretsmanager",
+    "xray"
+  ])
 }
 
 resource "aws_vpc" "this" {
@@ -63,31 +70,6 @@ resource "aws_subnet" "data" {
   }
 }
 
-resource "aws_eip" "nat" {
-  count = local.az_count
-
-  domain = "vpc"
-
-  depends_on = [aws_internet_gateway.this]
-
-  tags = {
-    Name = "${local.name}-nat-${var.availability_zones[count.index]}"
-  }
-}
-
-resource "aws_nat_gateway" "this" {
-  count = local.az_count
-
-  allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
-
-  depends_on = [aws_internet_gateway.this]
-
-  tags = {
-    Name = "${local.name}-nat-${var.availability_zones[count.index]}"
-  }
-}
-
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
 
@@ -113,11 +95,6 @@ resource "aws_route_table" "application" {
 
   vpc_id = aws_vpc.this.id
 
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.this[count.index].id
-  }
-
   tags = {
     Name = "${local.name}-app-${var.availability_zones[count.index]}"
   }
@@ -128,6 +105,32 @@ resource "aws_route_table_association" "application" {
 
   subnet_id      = aws_subnet.application[count.index].id
   route_table_id = aws_route_table.application[count.index].id
+}
+
+resource "aws_vpc_endpoint" "application_interface" {
+  for_each = local.application_interface_endpoint_services
+
+  vpc_id              = aws_vpc.this.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.value}"
+  vpc_endpoint_type   = "Interface"
+  private_dns_enabled = true
+  subnet_ids          = aws_subnet.application[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+
+  tags = {
+    Name = "${local.name}-${replace(each.value, ".", "-")}-endpoint"
+  }
+}
+
+resource "aws_vpc_endpoint" "application_s3" {
+  vpc_id            = aws_vpc.this.id
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = aws_route_table.application[*].id
+
+  tags = {
+    Name = "${local.name}-s3-endpoint"
+  }
 }
 
 resource "aws_route_table" "data" {

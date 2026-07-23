@@ -13,6 +13,11 @@ output "ecr_repository_url" {
   value       = aws_ecr_repository.application.repository_url
 }
 
+output "adot_ecr_repository_url" {
+  description = "Private ECR repository for the pinned ADOT sidecar mirror."
+  value       = aws_ecr_repository.adot.repository_url
+}
+
 output "ecs_cluster_name" {
   description = "ECS cluster name."
   value       = aws_ecs_cluster.this.name

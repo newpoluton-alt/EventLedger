@@ -45,6 +45,44 @@ resource "aws_ecr_lifecycle_policy" "application" {
   })
 }
 
+locals {
+  adot_image_tag = "v0.48.0"
+}
+
+resource "aws_ecr_repository" "adot" {
+  name                 = "${var.project_name}-adot"
+  image_tag_mutability = "IMMUTABLE"
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "adot" {
+  repository = aws_ecr_repository.adot.name
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Remove untagged images after seven days"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 7
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_ecs_cluster" "this" {
   name = local.name
 
@@ -247,7 +285,7 @@ resource "aws_ecs_task_definition" "application" {
   container_definitions = jsonencode([
     {
       name      = "otel-collector"
-      image     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.48.0"
+      image     = "${aws_ecr_repository.adot.repository_url}:${local.adot_image_tag}"
       essential = true
       cpu       = 256
       memory    = 512
@@ -470,7 +508,12 @@ resource "aws_ecs_service" "application" {
     aws_iam_role_policy.ecs_execution_secrets,
     aws_msk_scram_secret_association.this,
     aws_secretsmanager_secret_version.api_key,
-    aws_secretsmanager_secret_version.redis
+    aws_secretsmanager_secret_version.redis,
+    aws_vpc_endpoint.application_interface,
+    aws_vpc_endpoint.application_s3,
+    aws_vpc_security_group_ingress_rule.endpoints_from_app,
+    aws_vpc_security_group_egress_rule.app_to_endpoints,
+    aws_vpc_security_group_egress_rule.app_to_s3
   ]
 
   lifecycle {

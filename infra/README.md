@@ -15,11 +15,14 @@ availability zones:
 - Route53 aliasing to the TLS load balancer;
 - CloudWatch logs, actionable SNS alarms, container insights, and an ADOT
   sidecar exporting traces to AWS X-Ray and application metrics to CloudWatch;
+- private ECR, Secrets Manager, CloudWatch Logs, X-Ray, and S3 endpoints so
+  application subnets need no NAT gateway or internet route;
 - automatic ECS deployments after completed database-credential rotations.
 
 The topology deliberately places ECS tasks in private subnets and all stateful
 services in isolated data subnets. Security groups permit only the required
-application-to-service ports.
+application-to-service ports. Runtime images are served from private ECR,
+including an immutable mirror of the pinned public ADOT release.
 
 ## Prerequisites
 
@@ -30,7 +33,7 @@ application-to-service ports.
 - an encrypted S3 state bucket and DynamoDB lock table
 - customer-managed KMS keys and existing database and MSK client secrets
 - at least one SNS topic subscribed to the production incident channel
-- an immutable EventLedger image already pushed to the ECR repository
+- immutable EventLedger and ADOT images already pushed to their ECR repositories
 
 The remote state contains sensitive values. Restrict bucket and KMS access,
 enable bucket versioning and CloudTrail data events, and never commit a
@@ -147,8 +150,8 @@ terraform -chdir=infra/terraform validate
 
 Store the plan as a short-lived, encrypted CI artifact if it must leave the
 runner; it can contain credentials. The checked-in defaults are production
-oriented and incur meaningful AWS cost, especially the NAT gateways, MSK
-brokers, and Multi-AZ databases.
+oriented and incur meaningful AWS cost, especially the interface VPC endpoints,
+MSK brokers, and Multi-AZ databases.
 
 ## Rotate the Redis credential
 
@@ -171,21 +174,30 @@ apply each phase immediately, and never skip the health check between phases.
 
 ## Bootstrap the platform and publish the first image
 
-On the first deployment, create the immutable ECR repository and publish the
-image. Then apply the complete platform with zero application tasks. This
-creates the private administration path without starting EventLedger against a
-database identity that does not exist:
+On the first deployment, create both immutable ECR repositories, publish the
+application image, and mirror the pinned ADOT sidecar. The ECS subnets have no
+internet route, so both runtime images must be available from private ECR.
+Then apply the complete platform with zero application tasks. This creates the
+private administration path without starting EventLedger against a database
+identity that does not exist:
 
 ```bash
 terraform -chdir=infra/terraform apply \
   -target=aws_ecr_repository.application \
-  -target=aws_ecr_lifecycle_policy.application
+  -target=aws_ecr_lifecycle_policy.application \
+  -target=aws_ecr_repository.adot \
+  -target=aws_ecr_lifecycle_policy.adot
 
 aws ecr get-login-password --region eu-central-1 \
   | docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.eu-central-1.amazonaws.com
 docker buildx build --platform linux/amd64 --target runtime \
   --tag ACCOUNT_ID.dkr.ecr.eu-central-1.amazonaws.com/eventledger:sha-GIT_SHA \
   --push .
+
+docker pull public.ecr.aws/aws-observability/aws-otel-collector:v0.48.0
+docker tag public.ecr.aws/aws-observability/aws-otel-collector:v0.48.0 \
+  ACCOUNT_ID.dkr.ecr.eu-central-1.amazonaws.com/eventledger-adot:v0.48.0
+docker push ACCOUNT_ID.dkr.ecr.eu-central-1.amazonaws.com/eventledger-adot:v0.48.0
 
 terraform -chdir=infra/terraform plan \
   -var=desired_count=0 \
