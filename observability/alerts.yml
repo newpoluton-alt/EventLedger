@@ -1,0 +1,69 @@
+groups:
+  - name: eventledger-availability
+    rules:
+      - alert: EventLedgerUnavailable
+        expr: up{job="eventledger"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: EventLedger is unavailable
+          description: Prometheus has been unable to scrape EventLedger for two minutes.
+          runbook_url: https://github.com/newpoluton-alt/EventLedger/blob/main/docs/runbooks/service-recovery.md
+
+      - alert: EventLedgerHighServerErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{job="eventledger",outcome="SERVER_ERROR"}[5m]))
+            /
+            clamp_min(sum(rate(http_server_requests_seconds_count{job="eventledger"}[5m])), 0.001)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 5% of EventLedger requests are failing
+          description: The HTTP 5xx ratio has remained above 5% for ten minutes.
+          runbook_url: https://github.com/newpoluton-alt/EventLedger/blob/main/docs/runbooks/service-recovery.md
+
+  - name: eventledger-correctness
+    rules:
+      - alert: EventLedgerOutboxPublishFailures
+        expr: increase(eventledger_outbox_events_total{result="failed"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Transactional outbox publication is repeatedly failing
+          description: More than five retryable publication failures occurred in five minutes.
+          runbook_url: https://github.com/newpoluton-alt/EventLedger/blob/main/docs/runbooks/broker-failure.md
+
+      - alert: EventLedgerOutboxBacklog
+        expr: eventledger_outbox_pending > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: The transactional outbox is not draining
+          description: More than 1,000 unpublished outbox entries have remained for ten minutes.
+          runbook_url: https://github.com/newpoluton-alt/EventLedger/blob/main/docs/runbooks/broker-failure.md
+
+      - alert: EventLedgerOutboxEventDead
+        expr: increase(eventledger_outbox_events_total{result="dead"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: An outbox event exhausted its retries
+          description: At least one durable event requires an approved requeue after root-cause repair.
+          runbook_url: https://github.com/newpoluton-alt/EventLedger/blob/main/docs/runbooks/broker-failure.md
+
+      - alert: EventLedgerReconciliationMismatch
+        expr: increase(eventledger_reconciliation_mismatches_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Reconciliation found an accounting mismatch
+          description: At least one mismatch was detected in the last ten minutes.
+          runbook_url: https://github.com/newpoluton-alt/EventLedger/blob/main/docs/runbooks/reconciliation.md

@@ -1,0 +1,23 @@
+spring:
+  cache:
+    type: none
+  main:
+    banner-mode: "off"
+  flyway:
+    locations: classpath:db/migration,classpath:db/demo
+  kafka:
+    listener:
+      auto-startup: false
+management:
+  tracing:
+    enabled: false
+event-ledger:
+  outbox:
+    enabled: false
+  reconciliation:
+    enabled: false
+  kafka:
+    topic-creation-enabled: false
+    consumer-enabled: false
+  security:
+    api-key: test-integration-api-key

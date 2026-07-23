@@ -1,0 +1,6 @@
+# Create this bucket and lock table separately before initializing production state.
+bucket         = "example-eventledger-terraform-state"
+key            = "prod/eventledger.tfstate"
+region         = "eu-central-1"
+encrypt        = true
+dynamodb_table = "terraform-state-locks"

@@ -1,0 +1,410 @@
+{
+  "consumer": {
+    "name": "EventLedger Portfolio Client"
+  },
+  "provider": {
+    "name": "EventLedger API"
+  },
+  "interactions": [
+    {
+      "description": "create an idempotent payment",
+      "providerStates": [
+        {
+          "name": "demo accounts exist with sufficient EUR balance"
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/payments",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Idempotency-Key": "11111111-1111-4111-8111-111111111111",
+          "X-API-Key": "pact-integration-api-key"
+        },
+        "body": {
+          "sourceAccountId": "00000000-0000-0000-0000-000000000001",
+          "destinationAccountId": "00000000-0000-0000-0000-000000000002",
+          "amount": 12.34,
+          "currency": "EUR",
+          "reference": "pact-order-1001"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "idempotencyKey": "11111111-1111-4111-8111-111111111111",
+          "sourceAccountId": "00000000-0000-0000-0000-000000000001",
+          "destinationAccountId": "00000000-0000-0000-0000-000000000002",
+          "amount": 12.34,
+          "currency": "EUR",
+          "reference": "pact-order-1001",
+          "status": "POSTED",
+          "createdAt": "2026-07-23T08:00:00Z"
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+                }
+              ]
+            },
+            "$.amount": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$.status": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "get an existing payment",
+      "providerStates": [
+        {
+          "name": "payment exists",
+          "params": {
+            "paymentId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "headers": {
+          "Accept": "application/json",
+          "X-API-Key": "pact-integration-api-key"
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^/api/v1/payments/[0-9a-fA-F-]{36}$"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "idempotencyKey": "11111111-1111-4111-8111-111111111111",
+          "sourceAccountId": "00000000-0000-0000-0000-000000000001",
+          "destinationAccountId": "00000000-0000-0000-0000-000000000002",
+          "amount": 12.34,
+          "currency": "EUR",
+          "reference": "pact-order-1001",
+          "status": "POSTED",
+          "createdAt": "2026-07-23T08:00:00Z"
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F-]{36}$"
+                }
+              ]
+            },
+            "$.amount": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "get an account balance",
+      "providerStates": [
+        {
+          "name": "demo customer account exists"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/accounts/00000000-0000-0000-0000-000000000001/balance",
+        "headers": {
+          "Accept": "application/json",
+          "X-API-Key": "pact-integration-api-key"
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^/api/v1/accounts/[0-9a-fA-F-]{36}/balance$"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "accountId": "00000000-0000-0000-0000-000000000001",
+          "currency": "EUR",
+          "balance": 10000.0,
+          "balanceMinor": 1000000,
+          "version": 1,
+          "updatedAt": "2026-07-23T08:00:00Z"
+        },
+        "matchingRules": {
+          "body": {
+            "$.balance": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$.balanceMinor": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.version": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "start a reconciliation run",
+      "providerStates": [
+        {
+          "name": "ledger is balanced"
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/reconciliation/runs",
+        "headers": {
+          "Accept": "application/json",
+          "X-API-Key": "pact-integration-api-key"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "status": "COMPLETED",
+          "triggerType": "MANUAL",
+          "startedAt": "2026-07-23T08:00:00Z",
+          "completedAt": "2026-07-23T08:00:01Z",
+          "discrepancyCount": 0
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F-]{36}$"
+                }
+              ]
+            },
+            "$.status": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.startedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+                }
+              ]
+            },
+            "$.completedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+                }
+              ]
+            },
+            "$.discrepancyCount": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "get a completed reconciliation run",
+      "providerStates": [
+        {
+          "name": "completed reconciliation run exists",
+          "params": {
+            "runId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/reconciliation/runs/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "headers": {
+          "Accept": "application/json",
+          "X-API-Key": "pact-integration-api-key"
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^/api/v1/reconciliation/runs/[0-9a-fA-F-]{36}$"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "status": "COMPLETED",
+          "triggerType": "MANUAL",
+          "startedAt": "2026-07-23T08:00:00Z",
+          "completedAt": "2026-07-23T08:00:01Z",
+          "discrepancyCount": 0
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F-]{36}$"
+                }
+              ]
+            },
+            "$.startedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+                }
+              ]
+            },
+            "$.completedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+                }
+              ]
+            },
+            "$.discrepancyCount": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  }
+}

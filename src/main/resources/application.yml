@@ -1,0 +1,131 @@
+spring:
+  application:
+    name: event-ledger
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/eventledger}
+    username: ${DATABASE_USERNAME:eventledger}
+    password: ${DATABASE_PASSWORD:eventledger}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: ${DB_MIN_IDLE:2}
+      connection-timeout: 3000
+      validation-timeout: 1000
+  flyway:
+    locations: classpath:db/migration
+    validate-on-migrate: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    admin:
+      fail-fast: false
+    consumer:
+      group-id: event-ledger
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        isolation.level: read_committed
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        max.block.ms: ${KAFKA_MAX_BLOCK_MS:5000}
+      retries: 10
+    listener:
+      ack-mode: record
+      missing-topics-fatal: false
+    properties:
+      request.timeout.ms: ${KAFKA_REQUEST_TIMEOUT_MS:5000}
+      delivery.timeout.ms: ${KAFKA_DELIVERY_TIMEOUT_MS:15000}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+      sasl.mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-512}
+      sasl.jaas.config: 'org.apache.kafka.common.security.scram.ScramLoginModule required username="${KAFKA_USERNAME:}" password="${KAFKA_PASSWORD:}";'
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 500ms
+  cache:
+    type: redis
+    redis:
+      time-to-live: 30s
+  jackson:
+    default-property-inclusion: non_null
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  task:
+    scheduling:
+      pool:
+        size: 2
+      thread-name-prefix: eventledger-scheduler-
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+
+management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,db
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLE_RATE:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+  observations:
+    key-values:
+      service: event-ledger
+  info:
+    env:
+      enabled: true
+
+event-ledger:
+  outbox:
+    enabled: ${OUTBOX_ENABLED:true}
+    batch-size: ${OUTBOX_BATCH_SIZE:10}
+    fixed-delay-ms: ${OUTBOX_FIXED_DELAY_MS:500}
+    lock-duration: ${OUTBOX_LOCK_DURATION:1m}
+    send-timeout: ${OUTBOX_SEND_TIMEOUT:5s}
+    max-attempts: ${OUTBOX_MAX_ATTEMPTS:12}
+    initial-backoff: ${OUTBOX_INITIAL_BACKOFF:1s}
+    max-backoff: ${OUTBOX_MAX_BACKOFF:5m}
+  reconciliation:
+    enabled: ${RECONCILIATION_ENABLED:true}
+    fixed-delay-ms: ${RECONCILIATION_FIXED_DELAY_MS:30000}
+    stale-payment-age: ${RECONCILIATION_STALE_PAYMENT_AGE:10m}
+    stale-outbox-age: ${RECONCILIATION_STALE_OUTBOX_AGE:5m}
+  kafka:
+    payment-topic: payments.v1
+    settlement-topic: settlements.v1
+    dead-letter-suffix: .DLT
+    partitions: ${KAFKA_TOPIC_PARTITIONS:6}
+    replication-factor: ${KAFKA_TOPIC_REPLICATION_FACTOR:1}
+    min-in-sync-replicas: ${KAFKA_TOPIC_MIN_ISR:1}
+    topic-creation-enabled: ${KAFKA_TOPIC_CREATION_ENABLED:true}
+    consumer-enabled: ${KAFKA_CONSUMER_ENABLED:true}
+  security:
+    api-key: ${EVENTLEDGER_API_KEY:}

@@ -1,0 +1,74 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  prometheus:
+    trim_metric_suffixes: false
+    config:
+      scrape_configs:
+        - job_name: eventledger
+          scrape_interval: 30s
+          metrics_path: /actuator/prometheus
+          static_configs:
+            - targets: ["127.0.0.1:8080"]
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 384
+    spike_limit_mib: 64
+  resource:
+    attributes:
+      - key: Environment
+        action: upsert
+        value: ${environment}
+  batch/traces:
+    send_batch_size: 50
+    timeout: 1s
+  batch/metrics:
+    timeout: 30s
+
+exporters:
+  awsxray:
+    region: ${region}
+  awsemf/application:
+    region: ${region}
+    namespace: EventLedger
+    log_group_name: ${metrics_log_group}
+    log_stream_name: application
+    dimension_rollup_option: NoDimensionRollup
+    retain_initial_value_of_delta_metric: true
+    resource_to_telemetry_conversion:
+      enabled: true
+    metric_declarations:
+      - dimensions: [[Environment]]
+        metric_name_selectors:
+          - "^eventledger_outbox_pending$"
+          - "^eventledger_reconciliation_mismatches_total$"
+      - dimensions: [[Environment, result]]
+        metric_name_selectors:
+          - "^eventledger_outbox_events_total$"
+          - "^eventledger_payments_total$"
+          - "^eventledger_consumer_events_total$"
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch/traces]
+      exporters: [awsxray]
+    metrics:
+      receivers: [prometheus]
+      processors: [memory_limiter, resource, batch/metrics]
+      exporters: [awsemf/application]
+  telemetry:
+    logs:
+      level: info
