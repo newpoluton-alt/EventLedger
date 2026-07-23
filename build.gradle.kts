@@ -53,7 +53,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-kafka")
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testImplementation("org.awaitility:awaitility-kotlin")
-    testImplementation("au.com.dius.pact.provider:junit5spring:4.6.17")
+    testImplementation("au.com.dius.pact.provider:junit5spring:4.7.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
