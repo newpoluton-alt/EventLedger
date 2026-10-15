@@ -87,7 +87,7 @@ jobs:
         run: curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health/readiness
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
